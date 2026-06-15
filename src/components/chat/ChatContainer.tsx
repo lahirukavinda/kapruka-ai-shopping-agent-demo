@@ -190,9 +190,15 @@ export default function ChatContainer() {
     const hasDeliveryCheck = recentAssistantTools.some(
       (inv) => inv.toolName === "kapruka_check_delivery"
     );
-    if (hasDeliveryCheck && cartHasItems) {
+    if (hasDeliveryCheck) {
+      const cartSummary = cartState.items
+        .map((item) => `${item.name} (ID: ${item.productId}, qty: ${item.quantity})`)
+        .join(", ");
+      const checkoutText = cartHasItems
+        ? `I want to proceed to checkout with these items: ${cartSummary}`
+        : "I want to proceed to checkout with the products we discussed";
       return [
-        { label: "Proceed to checkout", icon: "💳", text: "I want to proceed to checkout" },
+        { label: "Proceed to checkout", icon: "💳", text: checkoutText },
         { label: "Keep browsing", icon: "🛍️", text: "I want to keep browsing" },
         { label: "Check another city", icon: "📍", text: "Check delivery to another city" },
       ];
