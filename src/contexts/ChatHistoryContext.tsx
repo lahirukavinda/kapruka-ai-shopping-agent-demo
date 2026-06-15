@@ -22,6 +22,7 @@ interface ChatHistoryContextType {
 }
 
 const STORAGE_KEY = "aura_chat_history";
+const SESSION_ID_KEY = "aura_current_session";
 
 const ChatHistoryContext = createContext<ChatHistoryContextType>({
   sessions: [],
@@ -53,6 +54,8 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) setSessions(JSON.parse(stored));
+      const storedId = localStorage.getItem(SESSION_ID_KEY);
+      if (storedId) setCurrentSessionId(storedId);
     } catch { /* ignore */ }
   }, []);
 
@@ -61,6 +64,16 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
     } catch { /* ignore */ }
   }, [sessions]);
+
+  useEffect(() => {
+    try {
+      if (currentSessionId) {
+        localStorage.setItem(SESSION_ID_KEY, currentSessionId);
+      } else {
+        localStorage.removeItem(SESSION_ID_KEY);
+      }
+    } catch { /* ignore */ }
+  }, [currentSessionId]);
 
   const saveSession = useCallback(
     (messages: Array<{ id: string; role: string; content: string }>) => {
@@ -115,6 +128,7 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
 
   const startNewSession = useCallback(() => {
     setCurrentSessionId(null);
+    try { localStorage.removeItem(SESSION_ID_KEY); } catch { /* ignore */ }
   }, []);
 
   return (

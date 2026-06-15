@@ -136,6 +136,21 @@ describe("classifyIntentByRules", () => {
     expect(classifyIntentByRules("buy a case for my iPhone")).toBe("shopping");
   });
 
+  it("classifies short confirmations as general (preserves conversation flow)", () => {
+    expect(classifyIntentByRules("ha")).toBe("general");
+    expect(classifyIntentByRules("hari")).toBe("general");
+    expect(classifyIntentByRules("ow")).toBe("general");
+    expect(classifyIntentByRules("ok")).toBe("general");
+    expect(classifyIntentByRules("yes")).toBe("general");
+    expect(classifyIntentByRules("sure")).toBe("general");
+    expect(classifyIntentByRules("hari machan")).toBe("general");
+    expect(classifyIntentByRules("danna")).toBe("general");
+    expect(classifyIntentByRules("ganna")).toBe("general");
+    expect(classifyIntentByRules("go ahead")).toBe("general");
+    expect(classifyIntentByRules("හරි")).toBe("general");
+    expect(classifyIntentByRules("ඔව්")).toBe("general");
+  });
+
   it("returns null for ambiguous messages", () => {
     expect(classifyIntentByRules("hello")).toBeNull();
     expect(classifyIntentByRules("how are you today")).toBeNull();

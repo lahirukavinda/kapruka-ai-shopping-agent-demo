@@ -41,7 +41,7 @@ function getAvatarState(isLoading: boolean, messages: Message[]): AvatarState {
 export default function ChatContainer() {
 
   const { state: cartState, dispatch: cartDispatch } = useCart();
-  const { saveSession } = useChatHistory();
+  const { saveSession, startNewSession, loadSession } = useChatHistory();
   const { userPrefs, isReturningUser, setAddressingMode, setPreferredLanguage } = useCache();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -66,6 +66,26 @@ export default function ChatContainer() {
   const [showThinking, setShowThinking] = useState(false);
   const thinkingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Restore messages from the current session on mount (survives page reload)
+  // Read directly from localStorage to avoid timing issues with state hydration
+  const storedSession = useMemo(() => {
+    try {
+      const sessionId = localStorage.getItem("aura_current_session");
+      if (!sessionId) return undefined;
+      const stored = localStorage.getItem("aura_chat_history");
+      if (!stored) return undefined;
+      const allSessions: ChatSession[] = JSON.parse(stored);
+      const s = allSessions.find((sess) => sess.id === sessionId);
+      if (!s || s.messages.length === 0) return undefined;
+      return s.messages.map((m) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      }));
+    } catch { return undefined; }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only compute once on mount
+
   // Hide welcome screen and show personalized greeting for returning users
   useEffect(() => {
     if (isReturningUser && userPrefs) {
@@ -74,9 +94,17 @@ export default function ChatContainer() {
     }
   }, [isReturningUser, userPrefs]);
 
-  const { messages, isLoading, append } = useChat({
+  // Hide welcome screen if we restored a session from localStorage
+  useEffect(() => {
+    if (storedSession && storedSession.length > 0) {
+      setShowWelcome(false);
+    }
+  }, [storedSession]);
+
+  const { messages, isLoading, append, setMessages } = useChat({
     api: "/api/chat",
     body: { language: detectedLanguage },
+    initialMessages: storedSession,
     onError: (err) => {
       console.error("Chat error:", err);
       const msg = err.message || "";
@@ -265,20 +293,26 @@ export default function ChatContainer() {
 
   const handleRestoreSession = useCallback(
     (session: ChatSession) => {
-      // Restore by re-appending the messages from history
-      session.messages.forEach((m) => {
-        if (m.role === "user") {
-          append({ role: "user", content: m.content });
-        }
-      });
+      // Restore messages into the UI without re-sending to API
+      loadSession(session.id);
+      setMessages(
+        session.messages.map((m) => ({
+          id: m.id,
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        }))
+      );
       setShowWelcome(false);
     },
-    [append]
+    [loadSession, setMessages]
   );
 
   const handleNewChat = useCallback(() => {
-    window.location.reload();
-  }, []);
+    startNewSession();
+    setMessages([]);
+    setShowWelcome(true);
+    setError(null);
+  }, [startNewSession, setMessages]);
 
   const handlePlaceOrder = useCallback(
     (details: OrderDetails) => {

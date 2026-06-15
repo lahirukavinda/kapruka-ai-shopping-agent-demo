@@ -36,6 +36,11 @@ const EMOTIONAL_PATTERNS =
 const SL_EMOTIONAL_PATTERNS =
   /\b(gf|bf|girlfriend|boyfriend|crush|ex)\b.*\b(case|scene|problem|broke|cut|left|gone|fight)\b|\b(case|scene|problem|broke|cut|fight)\b.*\b(gf|bf|girlfriend|boyfriend|crush|ex)\b|\b(patch up|cut kala|case broke|propose kala|case karanawa|love ekak|podi aulk|podi aulak|aulk|aulak|gediya)\b/i;
 
+// Short affirmative/confirmation responses — route to "general" so the agent
+// (which has full conversation history) can decide the next action.
+const CONFIRMATION_PATTERNS =
+  /^(ha|hari|ow|ow ow|ok|okay|okey|yes|yeah|yep|yea|sure|danna|ganna|oney|one|hari machan|hari bro|do it|go ahead|proceed|confirm|ඔව්|හරි|දෙන්න|ගන්න)$/i;
+
 /**
  * Fast rule-based intent detection. Returns null when uncertain so we can
  * fall back to the LLM classifier only when needed.
@@ -43,6 +48,9 @@ const SL_EMOTIONAL_PATTERNS =
 export function classifyIntentByRules(message: string): Intent | null {
   const trimmed = message.trim();
   if (trimmed.length === 0) return "general";
+
+  // Short confirmations — give ALL tools so the agent can continue the flow
+  if (CONFIRMATION_PATTERNS.test(trimmed)) return "general";
 
   // Order patterns are very specific, check first
   if (ORDER_PATTERNS.test(trimmed)) return "order";
