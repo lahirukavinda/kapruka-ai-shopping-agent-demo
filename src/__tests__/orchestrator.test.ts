@@ -107,6 +107,29 @@ describe("classifyIntentByRules", () => {
     expect(classifyIntentByRules("chocolate ekak ganna one")).toBe("shopping");
   });
 
+  it("detects Singlish cart/shopping action patterns", () => {
+    expect(classifyIntentByRules("cart ekata danna")).toBe("shopping");
+    expect(classifyIntentByRules("Glitter Hearts eka cart ekata danna")).toBe("shopping");
+    expect(classifyIntentByRules("meka add karanna")).toBe("shopping");
+    expect(classifyIntentByRules("add karanawa")).toBe("shopping");
+    expect(classifyIntentByRules("ekata danna")).toBe("shopping");
+    expect(classifyIntentByRules("ekata ganna")).toBe("shopping");
+  });
+
+  it("detects Singlish checkout as order, order karanawa as shopping", () => {
+    // "checkout karanawa" matches ORDER_PATTERNS via bare "checkout" word
+    expect(classifyIntentByRules("checkout karanawa")).toBe("order");
+    // "order karanawa" doesn't match ORDER_PATTERNS (needs "place order" etc.),
+    // so it falls through to SINGLISH_CART_PATTERNS as a shopping action
+    expect(classifyIntentByRules("order karanawa")).toBe("shopping");
+  });
+
+  it("detects Sinhala Unicode cart patterns", () => {
+    expect(classifyIntentByRules("මේක ගන්න")).toBe("shopping");
+    expect(classifyIntentByRules("කාට් එකට දාන්න")).toBe("shopping");
+    expect(classifyIntentByRules("එකට දාන්න")).toBe("shopping");
+  });
+
   it("does NOT classify literal phone case as emotional", () => {
     // "phone case" has no relationship words nearby — should NOT match SL patterns
     expect(classifyIntentByRules("show me phone cases")).toBe("shopping");
@@ -253,6 +276,49 @@ describe("orchestrate", () => {
     expect(mockStreamText).toHaveBeenCalledTimes(2);
     const secondCall = mockStreamText.mock.calls[1][0];
     expect(secondCall.system).toBe("system-prompt-si");
+    expect(getAllTools).toHaveBeenCalled();
+  });
+
+  it("skips LLM classifier for Singlish cart commands (rule-based hit)", async () => {
+    // "cart ekata danna" matches SINGLISH_CART_PATTERNS -> rule-based shopping
+    // For tanglish language: only 1 streamText call (the agent), no LLM classifier
+    mockStreamText
+      .mockReturnValueOnce(makeTextStream("Adding to cart!"));
+
+    const model = createMockModel();
+    await orchestrate({
+      classifierModel: model,
+      agentModel: model,
+      messages: [{ role: "user", content: "cart ekata danna" }],
+      language: "tanglish",
+    });
+
+    // Only 1 streamText call (agent), NOT 2 (classifier + agent)
+    expect(mockStreamText).toHaveBeenCalledTimes(1);
+    const agentCall = mockStreamText.mock.calls[0][0];
+    expect(agentCall.system).toBe("system-prompt-tanglish-shopper");
+    expect(getShopperTools).toHaveBeenCalled();
+  });
+
+  it("runs parallel LLM calls for ambiguous Sinhala input (no rule match)", async () => {
+    // "kohomada" doesn't match any rule pattern -> needs LLM classifier
+    // For si language: 1 streamText call for classifier + 1 for agent = 2
+    mockStreamText
+      .mockReturnValueOnce(makeTextStream("general"))
+      .mockReturnValueOnce(makeTextStream("Kohomada machan!"));
+
+    const model = createMockModel();
+    await orchestrate({
+      classifierModel: model,
+      agentModel: model,
+      messages: [{ role: "user", content: "kohomada" }],
+      language: "si",
+    });
+
+    // 2 streamText calls: LLM classifier + agent
+    expect(mockStreamText).toHaveBeenCalledTimes(2);
+    const agentCall = mockStreamText.mock.calls[1][0];
+    expect(agentCall.system).toBe("system-prompt-si");
     expect(getAllTools).toHaveBeenCalled();
   });
 

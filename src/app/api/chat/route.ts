@@ -1,34 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { orchestrate } from "@/lib/agents/orchestrator";
 import type { CoreMessage } from "ai";
-
-// ─── Model Configuration Map ────────────────────────────────────────────────
-// Add new models here. Select the active model via AI_MODEL env var.
-// messageBudget: max tokens allocated to conversation history (excluding system prompt & tools)
-// lastMessageLimit: max chars preserved from the latest user message
-interface ModelConfig {
-  messageBudget: number;
-  lastMessageLimit: number;
-  apiModelName?: string; // actual model name sent to the API (when config key differs)
-}
-
-// Budgets reflect actual platform token caps (not the model's native context window).
-// GitHub Models free tier enforces 8K input / 4K output per request for all models.
-// OpenAI direct API has no platform cap — models can use their full context window.
-const MODEL_CONFIGS: Record<string, ModelConfig> = {
-  // ── GitHub Models free tier (8K input cap → ~4K available after overhead) ──
-  "gpt-4o-mini": { messageBudget: 4000,  lastMessageLimit: 2000 }, // 150 req/day
-  "gpt-4o":      { messageBudget: 4000,  lastMessageLimit: 2000 }, // 50 req/day
-  // ── GitHub Models Copilot Pro (4K input cap) ──
-  "gpt-5-mini":  { messageBudget: 2000,  lastMessageLimit: 1500 }, // requires Copilot Pro
-  // ── OpenAI direct API (128K+ context, no platform cap) ──
-  "gpt-4o-mini-direct": { messageBudget: 16000, lastMessageLimit: 4000, apiModelName: "gpt-4o-mini" },
-  "gpt-4o-direct":      { messageBudget: 32000, lastMessageLimit: 8000, apiModelName: "gpt-4o" },
-};
-
-// Default to gpt-4o-mini: same token limits as gpt-4o but 3× more requests/day.
-const DEFAULT_MODEL = "gpt-4o-mini";
-const DEFAULT_CONFIG: ModelConfig = { messageBudget: 4000, lastMessageLimit: 2000 };
+import { getApiModelName, getModelConfig } from "@/lib/modelConfig";
 
 // ─── Provider Setup ─────────────────────────────────────────────────────────
 const apiKey = process.env.GITHUB_TOKEN || process.env.OPENAI_API_KEY || "";
@@ -41,22 +14,6 @@ const openai = createOpenAI({
   apiKey,
   baseURL,
 });
-
-function getModelName(): string {
-  return process.env.AI_MODEL || DEFAULT_MODEL;
-}
-
-/** Resolve the actual API model name (strips "-direct" suffix etc.) */
-function getApiModelName(): string {
-  const configKey = getModelName();
-  const config = MODEL_CONFIGS[configKey];
-  return config?.apiModelName ?? configKey;
-}
-
-function getModelConfig(): ModelConfig {
-  const model = getModelName();
-  return MODEL_CONFIGS[model] || DEFAULT_CONFIG;
-}
 
 // Estimate tokens from the FULL serialized message including tool results.
 function estimateTokens(msg: CoreMessage): number {

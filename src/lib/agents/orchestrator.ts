@@ -10,8 +10,11 @@ type Intent = "shopping" | "logistics" | "order" | "emotional" | "general";
 const SHOPPING_PATTERNS =
   /\b(show me|search|find|browse|look for|products?|items?|cakes?|flowers?|chocolates?|gifts?|buy|shop|categories|catalog|compare|cheaper|expensive|price|similar|recommend|suggest|add to cart|add.*cart|cart.*add|cart ekata|cart eke)\b/i;
 // Singlish/Sinhala cart & shopping action patterns — avoid LLM call for common follow-ups
+// Split into Latin (\b works) and Sinhala (no \b — Unicode chars aren't \w)
 const SINGLISH_CART_PATTERNS =
-  /\b(cart ekata|cart eke|danna|ganna|add karanna|add karanawa|ekata danna|ekata ganna|checkout karanawa|order karanawa|මේක ගන්න|කාට් එකට|එකට දාන්න)\b/i;
+  /\b(cart ekata|cart eke|danna|ganna|add karanna|add karanawa|ekata danna|ekata ganna|checkout karanawa|order karanawa)\b/i;
+const SINHALA_CART_PATTERNS =
+  /(මේක ගන්න|කාට් එකට|එකට දාන්න)/;
 // Comparison/indecision patterns — detect "X or Y" / "X vs Y" / "can't decide" requests
 const COMPARISON_PATTERNS =
   /\b(compare|vs\.?|versus|or\b.*\bwhich|which.*\bor\b|can't decide|cant decide|hithaganna ba|hithaganna bari|hithaganna nehe|better|difference between|mokada honda|hoda)\b.*\b(apple|samsung|iphone|galaxy|huawei|oppo|vivo|xiaomi|nokia|phone|laptop|tablet|camera|tv|cake|chocolate|flower|gift|product)/i;
@@ -51,6 +54,7 @@ export function classifyIntentByRules(message: string): Intent | null {
   if (TANGLISH_COMPARISON_PATTERN.test(trimmed)) return "shopping";
   if (SHOPPING_PATTERNS.test(trimmed)) return "shopping";
   if (SINGLISH_CART_PATTERNS.test(trimmed)) return "shopping";
+  if (SINHALA_CART_PATTERNS.test(trimmed)) return "shopping";
   // Sinhala/Tanglish product requests (e.g., "මට cake එකක් ඕනෙ")
   if (SINHALA_SHOPPING_PATTERNS.test(trimmed)) return "shopping";
   if (SINHALA_UNICODE_PRODUCT_PATTERNS.test(trimmed)) return "shopping";
