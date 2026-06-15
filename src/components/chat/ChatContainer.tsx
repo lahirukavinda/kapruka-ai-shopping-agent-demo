@@ -210,6 +210,17 @@ export default function ChatContainer() {
       ];
     }
 
+    const hasOrderPlacement = recentAssistantTools.some(
+      (inv) => inv.toolName === "kapruka_create_order"
+    );
+    if (hasOrderPlacement) {
+      return [
+        { label: "Track my order", icon: "📦", text: "Track my order" },
+        { label: "Browse more products", icon: "🛍️", text: "I want to browse more products" },
+        { label: "Gift Ideas", icon: "🎁", text: "Show me gift ideas" },
+      ];
+    }
+
     const hasSearchResults = recentAssistantTools.some(
       (inv) => inv.toolName === "kapruka_search_products"
     );
