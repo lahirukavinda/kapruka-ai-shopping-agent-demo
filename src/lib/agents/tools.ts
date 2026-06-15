@@ -163,5 +163,7 @@ export function getLogisticsTools() {
 export function getOrderTools() {
   return {
     kapruka_create_order: kaprukaCreateOrder,
+    kapruka_list_delivery_cities: kaprukaListDeliveryCities,
+    kapruka_check_delivery: kaprukaCheckDelivery,
   };
 }

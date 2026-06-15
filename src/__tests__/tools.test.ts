@@ -66,18 +66,19 @@ describe("getLogisticsTools", () => {
 });
 
 describe("getOrderTools", () => {
-  it("returns only the create order tool", () => {
+  it("returns order and delivery tools", () => {
     const tools = getOrderTools();
     const names = Object.keys(tools);
-    expect(names).toHaveLength(1);
+    expect(names).toHaveLength(3);
     expect(names).toContain("kapruka_create_order");
+    expect(names).toContain("kapruka_list_delivery_cities");
+    expect(names).toContain("kapruka_check_delivery");
   });
 
-  it("does not include shopping or logistics tools", () => {
+  it("does not include shopping or tracking tools", () => {
     const tools = getOrderTools();
     const names = Object.keys(tools);
     expect(names).not.toContain("kapruka_search_products");
-    expect(names).not.toContain("kapruka_list_delivery_cities");
     expect(names).not.toContain("kapruka_track_order");
   });
 });
