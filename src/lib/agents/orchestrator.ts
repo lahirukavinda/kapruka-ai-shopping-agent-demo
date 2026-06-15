@@ -8,7 +8,10 @@ type Intent = "shopping" | "logistics" | "order" | "emotional" | "general";
 
 // Rule-based intent patterns to avoid an LLM call for common queries
 const SHOPPING_PATTERNS =
-  /\b(show me|search|find|browse|look for|products?|items?|cakes?|flowers?|chocolates?|gifts?|buy|shop|categories|catalog|compare|cheaper|expensive|price|similar|recommend|suggest)\b/i;
+  /\b(show me|search|find|browse|look for|products?|items?|cakes?|flowers?|chocolates?|gifts?|buy|shop|categories|catalog|compare|cheaper|expensive|price|similar|recommend|suggest|add to cart|add.*cart|cart.*add|cart ekata|cart eke)\b/i;
+// Singlish/Sinhala cart & shopping action patterns — avoid LLM call for common follow-ups
+const SINGLISH_CART_PATTERNS =
+  /\b(cart ekata|cart eke|danna|ganna|add karanna|add karanawa|ekata danna|ekata ganna|checkout karanawa|order karanawa|මේක ගන්න|කාට් එකට|එකට දාන්න)\b/i;
 // Comparison/indecision patterns — detect "X or Y" / "X vs Y" / "can't decide" requests
 const COMPARISON_PATTERNS =
   /\b(compare|vs\.?|versus|or\b.*\bwhich|which.*\bor\b|can't decide|cant decide|hithaganna ba|hithaganna bari|hithaganna nehe|better|difference between|mokada honda|hoda)\b.*\b(apple|samsung|iphone|galaxy|huawei|oppo|vivo|xiaomi|nokia|phone|laptop|tablet|camera|tv|cake|chocolate|flower|gift|product)/i;
@@ -47,6 +50,7 @@ export function classifyIntentByRules(message: string): Intent | null {
   if (COMPARISON_PATTERNS.test(trimmed)) return "shopping";
   if (TANGLISH_COMPARISON_PATTERN.test(trimmed)) return "shopping";
   if (SHOPPING_PATTERNS.test(trimmed)) return "shopping";
+  if (SINGLISH_CART_PATTERNS.test(trimmed)) return "shopping";
   // Sinhala/Tanglish product requests (e.g., "මට cake එකක් ඕනෙ")
   if (SINHALA_SHOPPING_PATTERNS.test(trimmed)) return "shopping";
   if (SINHALA_UNICODE_PRODUCT_PATTERNS.test(trimmed)) return "shopping";
@@ -151,18 +155,28 @@ export async function orchestrate({
   let intent: Intent;
 
   if (language === "tanglish" || language === "si") {
-    const [normalizedResult, classifiedIntent] = await Promise.all([
-      normalizeSlang(classifierModel, lastUserMsg),
-      classifyIntent(classifierModel, lastUserMsg),
-    ]);
-    slangTokens = normalizedResult;
-    // Override intent if slang normalizer detected a non-product emotional/relationship message
-    if (slangTokens && !slangTokens.isProductRequest && 
-        (slangTokens.normalizedIntent === "relationship_issue" || slangTokens.normalizedIntent === "emotional" ||
-         slangTokens.emotionalTone === "sad" || slangTokens.emotionalTone === "angry" || slangTokens.emotionalTone === "stressed")) {
-      intent = "emotional";
+    // If rule-based classification already resolved, skip the LLM classifier call
+    const ruleIntent = classifyIntentByRules(lastUserMsg);
+
+    if (ruleIntent !== null) {
+      // Rule-based hit — only run slang normalizer (1 LLM call instead of 2)
+      intent = ruleIntent;
+      slangTokens = await normalizeSlang(classifierModel, lastUserMsg).catch(() => null);
     } else {
-      intent = classifiedIntent;
+      // No rule-based match — run both in parallel
+      const [normalizedResult, classifiedIntent] = await Promise.all([
+        normalizeSlang(classifierModel, lastUserMsg).catch(() => null),
+        classifyIntent(classifierModel, lastUserMsg).catch(() => "general" as Intent),
+      ]);
+      slangTokens = normalizedResult;
+      // Override intent if slang normalizer detected a non-product emotional/relationship message
+      if (slangTokens && !slangTokens.isProductRequest && 
+          (slangTokens.normalizedIntent === "relationship_issue" || slangTokens.normalizedIntent === "emotional" ||
+           slangTokens.emotionalTone === "sad" || slangTokens.emotionalTone === "angry" || slangTokens.emotionalTone === "stressed")) {
+        intent = "emotional";
+      } else {
+        intent = classifiedIntent;
+      }
     }
   } else {
     intent = await classifyIntent(classifierModel, lastUserMsg);
