@@ -9,6 +9,7 @@ import type { CoreMessage } from "ai";
 interface ModelConfig {
   messageBudget: number;
   lastMessageLimit: number;
+  apiModelName?: string; // actual model name sent to the API (when config key differs)
 }
 
 // Budgets reflect actual platform token caps (not the model's native context window).
@@ -21,8 +22,8 @@ const MODEL_CONFIGS: Record<string, ModelConfig> = {
   // ── GitHub Models Copilot Pro (4K input cap) ──
   "gpt-5-mini":  { messageBudget: 2000,  lastMessageLimit: 1500 }, // requires Copilot Pro
   // ── OpenAI direct API (128K+ context, no platform cap) ──
-  "gpt-4o-mini-direct": { messageBudget: 16000, lastMessageLimit: 4000 },
-  "gpt-4o-direct":      { messageBudget: 32000, lastMessageLimit: 8000 },
+  "gpt-4o-mini-direct": { messageBudget: 16000, lastMessageLimit: 4000, apiModelName: "gpt-4o-mini" },
+  "gpt-4o-direct":      { messageBudget: 32000, lastMessageLimit: 8000, apiModelName: "gpt-4o" },
 };
 
 // Default to gpt-4o-mini: same token limits as gpt-4o but 3× more requests/day.
@@ -43,6 +44,13 @@ const openai = createOpenAI({
 
 function getModelName(): string {
   return process.env.AI_MODEL || DEFAULT_MODEL;
+}
+
+/** Resolve the actual API model name (strips "-direct" suffix etc.) */
+function getApiModelName(): string {
+  const configKey = getModelName();
+  const config = MODEL_CONFIGS[configKey];
+  return config?.apiModelName ?? configKey;
 }
 
 function getModelConfig(): ModelConfig {
@@ -144,11 +152,11 @@ export async function POST(req: Request) {
   try {
     const { messages: rawMessages, language = "en" } = await req.json();
 
-    const model = getModelName();
+    const apiModel = getApiModelName();
     let messages = trimMessages(rawMessages);
 
-    const classifierModel = openai(model);
-    const agentModel = openai(model);
+    const classifierModel = openai(apiModel);
+    const agentModel = openai(apiModel);
 
     let lastError: unknown = null;
 
