@@ -128,7 +128,10 @@ export function parseTracking(data: unknown): OrderTracking | null {
 export function parseOrder(data: unknown): OrderResult | null {
   try {
     const parsed = extractParsed(data) as Record<string, unknown>;
-    if (!parsed?.order_id && !parsed?.orderId && !parsed?.order_ref && !parsed?.orderRef) return null;
+    // Accept order if we have an order_id/order_ref OR a pay_url/checkout_url
+    const hasId = !!(parsed?.order_id || parsed?.orderId || parsed?.order_ref || parsed?.orderRef);
+    const hasUrl = !!(parsed?.pay_url || parsed?.payUrl || parsed?.checkout_url || parsed?.checkoutUrl);
+    if (!hasId && !hasUrl) return null;
     const items = Array.isArray(parsed.items)
       ? parsed.items.map((it: Record<string, unknown>) => ({
           productId: String(it.product_id || it.productId || ""),

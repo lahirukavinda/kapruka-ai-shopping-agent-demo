@@ -3,6 +3,9 @@ export interface ResponseAction {
   text: string;
 }
 
+// Items that look like order details, prices, or payment links should not become chips
+const SKIP_PATTERN = /LKR|Rs\.|මෙතනින්|https?:\/\/|checkout|pay_url|total|delivery.*fee|subtotal|grand.?total/i;
+
 export function parseResponseActions(content: string): ResponseAction[] {
   const actions: ResponseAction[] = [];
 
@@ -12,7 +15,7 @@ export function parseResponseActions(content: string): ResponseAction[] {
   const numberedItems: string[] = [];
   while ((match = numberedRegex.exec(content)) !== null) {
     const item = match[1].replace(/\*\*/g, "").trim();
-    if (item.length > 0 && item.length < 80) numberedItems.push(item);
+    if (item.length > 0 && item.length < 80 && !SKIP_PATTERN.test(item)) numberedItems.push(item);
   }
   if (numberedItems.length >= 2) {
     for (const item of numberedItems.slice(0, 6)) {
@@ -27,7 +30,7 @@ export function parseResponseActions(content: string): ResponseAction[] {
   const bulletItems: string[] = [];
   while ((match = bulletRegex.exec(content)) !== null) {
     const item = match[1].replace(/\*\*/g, "").trim();
-    if (item.length > 0 && item.length < 80) bulletItems.push(item);
+    if (item.length > 0 && item.length < 80 && !SKIP_PATTERN.test(item)) bulletItems.push(item);
   }
   if (bulletItems.length >= 2) {
     for (const item of bulletItems.slice(0, 6)) {
@@ -42,7 +45,7 @@ export function parseResponseActions(content: string): ResponseAction[] {
   const emojiItems: Array<{ emoji: string; text: string }> = [];
   while ((match = emojiRegex.exec(content)) !== null) {
     const item = match[2].replace(/\*\*/g, "").trim();
-    if (item.length > 0 && item.length < 80) {
+    if (item.length > 0 && item.length < 80 && !SKIP_PATTERN.test(item)) {
       emojiItems.push({ emoji: match[1], text: item });
     }
   }

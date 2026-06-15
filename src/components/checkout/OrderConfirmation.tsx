@@ -105,10 +105,12 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
 
       {/* Order details */}
       <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-        <div className="flex justify-between">
-          <span className="font-medium">Order ID</span>
-          <span className="font-mono text-green-700 dark:text-green-300">{order.orderId}</span>
-        </div>
+        {order.orderId && (
+          <div className="flex justify-between">
+            <span className="font-medium">Order ID</span>
+            <span className="font-mono text-green-700 dark:text-green-300">{order.orderId}</span>
+          </div>
+        )}
         {order.orderRef && (
           <div className="flex justify-between">
             <span className="font-medium">Reference</span>

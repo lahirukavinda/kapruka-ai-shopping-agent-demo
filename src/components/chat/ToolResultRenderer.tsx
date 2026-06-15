@@ -159,7 +159,10 @@ function extractParsed(data: unknown): unknown {
 function parseOrder(data: unknown): OrderResult | null {
   try {
     const parsed = extractParsed(data) as Record<string, unknown>;
-    if (!parsed?.order_id && !parsed?.orderId) return null;
+    // Accept order if we have an order_id OR a pay_url/checkout_url
+    const hasOrderId = !!(parsed?.order_id || parsed?.orderId);
+    const hasPayUrl = !!(parsed?.pay_url || parsed?.payUrl || parsed?.checkout_url || parsed?.checkoutUrl);
+    if (!hasOrderId && !hasPayUrl) return null;
     const items = Array.isArray(parsed.items)
       ? parsed.items.map((it: Record<string, unknown>) => ({
           productId: String(it.product_id || it.productId || ""),
