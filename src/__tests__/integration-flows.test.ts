@@ -708,6 +708,65 @@ describe("Tanglish/Sinhala Checkout & Delivery Flows", () => {
   });
 });
 
+// ─── Payment Button Graceful Degradation Tests ──────────────────────────────
+
+describe("Payment Button Graceful Degradation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("payment URLs in order confirmation are not parsed as action chips", () => {
+    const orderText = `Order confirmed! 🎉
+Reference: ORD-20260616-G7IV
+Total: LKR 4,500
+Payment: [මෙතනින්](https://www.kapruka.com/tools/continue_order.jsp?id=TEST123)`;
+    const actions = parseResponseActions(orderText);
+    expect(actions).toHaveLength(0);
+  });
+
+  it("payment link with kapruka.com/tools/continue_order is filtered from chips", () => {
+    const text = `Pay here: [Click to pay](https://www.kapruka.com/tools/continue_order.jsp?id=ABC)`;
+    const actions = parseResponseActions(text);
+    expect(actions).toHaveLength(0);
+  });
+
+  it("order flow response with payment link does not generate clickable actions", () => {
+    const responseText = `Ela! ඔයාගේ order එක confirm කරා! 🎉 Total එක LKR 4,500.
+ඔයාට payment කරන්න [මෙතනින්](https://www.kapruka.com/tools/continue_order.jsp?id=XYZ) යන්න පුළුවන්.
+Order එක ගැන තවත් දෙයක් ඕනෙ නම් කියන්න!`;
+    const actions = parseResponseActions(responseText);
+    expect(actions).toHaveLength(0);
+  });
+
+  it("checkout with recipient details classifies as order intent", () => {
+    expect(classifyIntentByRules("checkout karanawa")).toBe("order");
+    // Recipient/Sender prefixed format also classifies as order
+    const orderDetails =
+      "Recipient: Lahiru, Phone: 0771234567, Address: 45 Galle Road Colombo 07, Delivery: June 25";
+    expect(classifyIntentByRules(orderDetails)).toBe("order");
+  });
+
+  it("parseOrder extracts payment URL for client-side PaymentButton rendering", () => {
+    const apiResponse = {
+      order_ref: "ORD-20260616-G7IV",
+      checkout_url:
+        "https://www.kapruka.com/tools/continue_order.jsp?id=TESTPAY",
+      summary: {
+        items_total: 4200,
+        delivery_fee: 300,
+        grand_total: 4500,
+        currency: "LKR",
+      },
+      expires_at: "2026-06-16T12:00:00+05:30",
+    };
+    const result = parseOrder(apiResponse);
+    expect(result).not.toBeNull();
+    expect(result!.payUrl).toContain("continue_order");
+    expect(result!.orderId).toBe("ORD-20260616-G7IV");
+    expect(result!.total).toBe(4500);
+  });
+});
+
 // ─── Action Chip Generation Tests ────────────────────────────────────────────
 
 describe("Post-Action Chip Generation", () => {

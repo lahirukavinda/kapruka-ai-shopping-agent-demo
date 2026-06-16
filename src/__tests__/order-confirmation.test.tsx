@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import OrderConfirmation from "@/components/checkout/OrderConfirmation";
 import type { OrderResult } from "@/types";
 
@@ -67,5 +67,36 @@ describe("OrderConfirmation", () => {
     render(<OrderConfirmation order={order} />);
     // Should show "Price locked for MM:SS"
     expect(screen.getByText(/Price locked for/)).toBeInTheDocument();
+  });
+
+  it("payment button shows processing state on click", () => {
+    render(<OrderConfirmation order={order} />);
+    const payButton = screen.getByText(/Complete Payment/i);
+    fireEvent.click(payButton);
+    expect(screen.getByText(/Processing payment/i)).toBeInTheDocument();
+  });
+
+  it("payment button transitions to error state after timeout", () => {
+    vi.useFakeTimers();
+    render(<OrderConfirmation order={order} />);
+    const payButton = screen.getByText(/Complete Payment/i);
+    fireEvent.click(payButton);
+    expect(screen.getByText(/Processing payment/i)).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+
+    expect(screen.getByText(/Payment gateway temporarily unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText(/keep browsing and adding more items/i)).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("payment button does not send chat message or navigate away", () => {
+    render(<OrderConfirmation order={order} />);
+    const payButton = screen.getByText(/Complete Payment/i);
+    // The button is type="button" (not submit), no href — purely client-side
+    expect(payButton.closest("button")).toHaveAttribute("type", "button");
+    expect(payButton.closest("a")).toBeNull();
   });
 });
