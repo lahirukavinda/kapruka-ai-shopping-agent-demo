@@ -73,7 +73,7 @@ export default function ChatHeader({ avatarState, onCartOpen, onHistoryOpen }: C
         <button
           onClick={onCartOpen}
           className="header-btn touch-target relative w-10 h-10 flex items-center justify-center rounded-full text-lg"
-          aria-label={`Cart with ${totalItems} items`}
+          aria-label={`Cart with ${totalItems} ${totalItems === 1 ? "item" : "items"}`}
         >
           🛒
           {hasMounted && totalItems > 0 && (

@@ -2,10 +2,17 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
 
+export interface StoredMessage {
+  id: string;
+  role: string;
+  content: string;
+  toolInvocations?: unknown[];
+}
+
 export interface ChatSession {
   id: string;
   title: string;
-  messages: Array<{ id: string; role: string; content: string }>;
+  messages: StoredMessage[];
   createdAt: string;
   updatedAt: string;
 }
@@ -13,7 +20,7 @@ export interface ChatSession {
 interface ChatHistoryContextType {
   sessions: ChatSession[];
   currentSessionId: string | null;
-  saveSession: (messages: Array<{ id: string; role: string; content: string }>) => void;
+  saveSession: (messages: StoredMessage[]) => void;
   loadSession: (id: string) => ChatSession | null;
   listSessions: () => ChatSession[];
   deleteSession: (id: string) => void;
@@ -76,7 +83,7 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
   }, [currentSessionId]);
 
   const saveSession = useCallback(
-    (messages: Array<{ id: string; role: string; content: string }>) => {
+    (messages: StoredMessage[]) => {
       if (messages.length === 0) return;
       const now = new Date().toISOString();
 

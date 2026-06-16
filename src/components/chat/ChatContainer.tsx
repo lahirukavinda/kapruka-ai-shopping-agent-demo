@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { useChat, Message } from "ai/react";
+import type { ToolInvocation } from "ai";
 import { motion, AnimatePresence } from "framer-motion";
 import ChatHeader from "./ChatHeader";
 import MessageBubble from "./MessageBubble";
@@ -18,7 +19,7 @@ import AuraAvatar from "./AuraAvatar";
 import GoldenTreeBackground from "./GoldenTreeBackground";
 import { detectLanguage } from "@/lib/detectLanguage";
 import { useCart } from "@/contexts/CartContext";
-import { useChatHistory, type ChatSession } from "@/contexts/ChatHistoryContext";
+import { useChatHistory, type ChatSession, type StoredMessage } from "@/contexts/ChatHistoryContext";
 import { useCache } from "@/contexts/CacheContext";
 import { detectAddressingMode, getReturningGreeting } from "@/lib/cache/userPrefsCache";
 import { parseResponseActions } from "@/lib/parseResponseActions";
@@ -77,10 +78,11 @@ export default function ChatContainer() {
       const allSessions: ChatSession[] = JSON.parse(stored);
       const s = allSessions.find((sess) => sess.id === sessionId);
       if (!s || s.messages.length === 0) return undefined;
-      return s.messages.map((m) => ({
+      return s.messages.map((m: StoredMessage) => ({
         id: m.id,
         role: m.role as "user" | "assistant",
         content: m.content,
+        ...(m.toolInvocations ? { toolInvocations: m.toolInvocations as ToolInvocation[] } : {}),
       }));
     } catch { return undefined; }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -181,7 +183,12 @@ export default function ChatContainer() {
   useEffect(() => {
     if (messages.length > 0) {
       setShowWelcome(false);
-      saveSession(messages.map((m) => ({ id: m.id, role: m.role, content: m.content })));
+      saveSession(messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        ...(m.toolInvocations && m.toolInvocations.length > 0 ? { toolInvocations: m.toolInvocations } : {}),
+      })));
     }
   }, [messages, saveSession]);
 
@@ -327,6 +334,20 @@ export default function ChatContainer() {
       return chips;
     }
 
+    // After add-to-cart, show checkout-relevant chips instead of search chips
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+    const lastUserText = lastUserMsg && typeof lastUserMsg.content === "string" ? lastUserMsg.content : "";
+    const isCartAddMsg = /\b(add.*(cart|to cart)|cart ekata|ekata danna|ekata ganna|add karanna|add karanawa|ගන්න|එකට දාන්න|කාට් එකට)\b/i.test(lastUserText)
+      || /^Add (this product to my cart|your top recommendation to my cart)/i.test(lastUserText);
+    if (isCartAddMsg && cartHasItems) {
+      return [
+        { label: "Checkout now", icon: "💳", text: "I want to proceed to checkout" },
+        { label: "Check delivery", icon: "🚚", text: "Check delivery availability to my area" },
+        { label: "Keep browsing", icon: "🛍️", text: "I want to keep browsing" },
+        { label: "View cart", icon: "🛒", text: "Show me what's in my cart" },
+      ];
+    }
+
     const hasSearchResults = recentAssistantTools.some(
       (inv) => inv.toolName === "kapruka_search_products"
     );
@@ -414,10 +435,11 @@ export default function ChatContainer() {
       // Restore messages into the UI without re-sending to API
       loadSession(session.id);
       setMessages(
-        session.messages.map((m) => ({
+        session.messages.map((m: StoredMessage) => ({
           id: m.id,
           role: m.role as "user" | "assistant",
           content: m.content,
+          ...(m.toolInvocations ? { toolInvocations: m.toolInvocations as ToolInvocation[] } : {}),
         }))
       );
       setShowWelcome(false);
