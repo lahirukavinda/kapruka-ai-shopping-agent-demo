@@ -57,13 +57,10 @@ describe("OrderConfirmation", () => {
     expect(screen.getByText(/2 items/)).toBeInTheDocument();
   });
 
-  it("renders payment link with correct href", () => {
+  it("renders payment button", () => {
     render(<OrderConfirmation order={order} />);
-    const payLink = screen.getByText(/Complete Payment/i);
-    expect(payLink.closest("a")).toHaveAttribute(
-      "href",
-      "https://pay.example.com/ORD-TEST-123"
-    );
+    const payButton = screen.getByText(/Complete Payment/i);
+    expect(payButton.closest("button")).toBeInTheDocument();
   });
 
   it("renders countdown timer", () => {

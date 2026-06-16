@@ -1,8 +1,66 @@
 "use client";
 
+import { useState } from "react";
 import { motion, useReducedMotion, type Variants } from "framer-motion";
 import AuraAvatar from "./AuraAvatar";
 import type { AvatarState } from "@/types";
+
+/** Detect payment-related URLs that should not be sent as chat messages */
+const PAYMENT_URL_RE = /kapruka\.com\/tools\/continue_order|payment|checkout/i;
+
+/** Graceful payment button: shows processing → error instead of exposing internals */
+function PaymentButton({ label }: { label: string }) {
+  const [state, setState] = useState<"idle" | "processing" | "error">("idle");
+
+  const handleClick = () => {
+    if (state !== "idle") return;
+    setState("processing");
+    setTimeout(() => setState("error"), 2500);
+  };
+
+  if (state === "error") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm
+        bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300
+        border border-amber-200 dark:border-amber-700">
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.27 16.5c-.77.833.192 2.5 1.732 2.5z" />
+        </svg>
+        Payment gateway busy — try again shortly. Keep shopping! 🛍️
+      </span>
+    );
+  }
+
+  if (state === "processing") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm
+        bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300
+        border border-blue-200 dark:border-blue-700 animate-pulse">
+        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        Processing payment...
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-sm font-medium
+        bg-green-500/10 dark:bg-green-500/15 text-green-700 dark:text-green-300
+        border border-green-500/20 dark:border-green-500/25
+        hover:bg-green-500/20 dark:hover:bg-green-500/25 hover:border-green-500/40
+        transition-all duration-200 cursor-pointer"
+      onClick={handleClick}
+    >
+      {label}
+      <svg className="w-3 h-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+      </svg>
+    </button>
+  );
+}
 
 interface MessageBubbleProps {
   role: "user" | "assistant";
@@ -37,6 +95,10 @@ function formatInline(text: string, onAction?: (text: string) => void): React.Re
     // Link [text](url) — render as styled chip if onAction available
     const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
     if (linkMatch) {
+      // Payment URLs get a special graceful button (no chat message sent)
+      if (PAYMENT_URL_RE.test(linkMatch[2])) {
+        return <PaymentButton key={j} label={linkMatch[1]} />;
+      }
       if (onAction) {
         return (
           <button

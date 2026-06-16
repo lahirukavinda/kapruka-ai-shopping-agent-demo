@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type MouseEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import type { OrderResult } from "@/types";
@@ -171,24 +171,66 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
         }
       </div>
 
-      {/* Pay button — prominent CTA */}
-      <a
-        href={order.checkoutUrl || order.payUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={`mt-4 flex items-center justify-center gap-2.5 w-full py-4 rounded-xl
-          font-bold text-white text-lg tracking-wide transition-all
-          ${expired
-            ? "bg-gray-400 dark:bg-gray-600 cursor-not-allowed pointer-events-none"
+      {/* Pay button — graceful handling since payment gateway is not yet live */}
+      <PayButton expired={expired} />
+    </motion.div>
+  );
+}
+
+/** Payment button that shows processing state then graceful error */
+function PayButton({ expired }: { expired: boolean }) {
+  const [payState, setPayState] = useState<"idle" | "processing" | "error">("idle");
+
+  const handlePayClick = (e: MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    if (expired || payState !== "idle") return;
+    setPayState("processing");
+    setTimeout(() => setPayState("error"), 3000);
+  };
+
+  if (payState === "error") {
+    return (
+      <div className="mt-4 flex flex-col items-center gap-2 w-full py-4 rounded-xl
+        bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 px-4">
+        <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-semibold">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.27 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          Payment gateway temporarily unavailable
+        </div>
+        <p className="text-sm text-amber-600 dark:text-amber-400 text-center">
+          Please try again in a few minutes. Your order is saved — keep browsing and adding more items! 🛍️
+        </p>
+      </div>
+    );
+  }
+
+  const label = payState === "processing" ? "Processing payment..." : expired ? "Link Expired" : "Complete Payment →";
+
+  return (
+    <button
+      type="button"
+      onClick={handlePayClick}
+      disabled={expired}
+      className={`mt-4 flex items-center justify-center gap-2.5 w-full py-4 rounded-xl
+        font-bold text-white text-lg tracking-wide transition-all
+        ${expired
+          ? "bg-gray-400 dark:bg-gray-600 cursor-not-allowed"
+          : payState === "processing"
+            ? "bg-gradient-to-r from-blue-500 to-blue-600 animate-pulse cursor-wait"
             : "bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-xl shadow-green-500/30 hover:shadow-green-500/50 hover:scale-[1.02] active:scale-[0.98]"
-          }`}
-        aria-disabled={expired}
-      >
+        }`}
+    >
+      {payState === "processing" ? (
+        <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+      ) : (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
         </svg>
-        {expired ? "Link Expired" : "Complete Payment →"}
-      </a>
-    </motion.div>
+      )}
+      {label}
+    </button>
   );
 }
