@@ -22,7 +22,7 @@ import { useChatHistory, type ChatSession } from "@/contexts/ChatHistoryContext"
 import { useCache } from "@/contexts/CacheContext";
 import { detectAddressingMode, getReturningGreeting } from "@/lib/cache/userPrefsCache";
 import { parseResponseActions } from "@/lib/parseResponseActions";
-import type { AvatarState, Product } from "@/types";
+import type { AvatarState, Product, CartItem } from "@/types";
 
 function getAvatarState(isLoading: boolean, messages: Message[]): AvatarState {
   if (isLoading) return "thinking";
@@ -101,9 +101,21 @@ export default function ChatContainer() {
     }
   }, [storedSession]);
 
+  // Build a lightweight cart summary to send to the model
+  const cartSummary = useMemo(() => {
+    if (cartState.items.length === 0) return undefined;
+    return cartState.items.map((item) => ({
+      productId: item.productId,
+      name: item.name,
+      price: item.price,
+      currency: item.currency,
+      quantity: item.quantity,
+    }));
+  }, [cartState.items]);
+
   const { messages, isLoading, append, setMessages } = useChat({
     api: "/api/chat",
-    body: { language: detectedLanguage },
+    body: { language: detectedLanguage, cart: cartSummary },
     initialMessages: storedSession,
     onError: (err) => {
       console.error("Chat error:", err);
@@ -172,6 +184,73 @@ export default function ChatContainer() {
       saveSession(messages.map((m) => ({ id: m.id, role: m.role, content: m.content })));
     }
   }, [messages, saveSession]);
+
+  // ─── Cart ↔ Chat Bridge ──────────────────────────────────────────────────
+  // When a new assistant message arrives after a user "add to cart" request,
+  // auto-sync the product from tool results into CartContext.
+  const lastSyncedMsgCount = useRef(0);
+  useEffect(() => {
+    if (isLoading || messages.length <= lastSyncedMsgCount.current) return;
+    lastSyncedMsgCount.current = messages.length;
+
+    // Find the last user message
+    const userMsgs = messages.filter((m) => m.role === "user");
+    const lastUser = userMsgs[userMsgs.length - 1];
+    if (!lastUser) return;
+    const text = typeof lastUser.content === "string" ? lastUser.content : "";
+
+    // Check if the user asked to add something to cart
+    const isCartAdd = /\b(add.*(cart|to cart)|cart ekata|ekata danna|ekata ganna|add karanna|add karanawa|ගන්න|එකට දාන්න|කාට් එකට)\b/i.test(text)
+      || /^Add (this product to my cart|your top recommendation to my cart)/i.test(text);
+    if (!isCartAdd) return;
+
+    // Look at recent assistant tool invocations for products
+    const recentToolMsgs = messages
+      .slice(-6)
+      .filter((m) => m.role === "assistant" && m.toolInvocations?.length);
+    for (const msg of [...recentToolMsgs].reverse()) {
+      for (const inv of msg.toolInvocations ?? []) {
+        if (
+          inv.state === "result" &&
+          (inv.toolName === "kapruka_search_products" || inv.toolName === "kapruka_get_product")
+        ) {
+          try {
+            const raw = inv.result;
+            const obj = typeof raw === "string" ? JSON.parse(raw) : raw;
+            const content = obj?.content;
+            let parsed = obj;
+            if (Array.isArray(content) && content.length > 0) {
+              const textItem = content.find((c: { type: string }) => c.type === "text");
+              if (textItem?.text) parsed = JSON.parse(textItem.text);
+            }
+            const products = parsed?.products || parsed?.results || parsed?.items;
+            if (Array.isArray(products) && products.length > 0) {
+              // Pick the first product (or the one the model recommended)
+              const p = products[0] as Record<string, unknown>;
+              const priceObj = p.price as { amount?: number; currency?: string } | number | null;
+              const price = typeof priceObj === "object" && priceObj !== null
+                ? Number(priceObj.amount || 0) : Number(priceObj || p.selling_price || 0);
+              const currency = typeof priceObj === "object" && priceObj !== null
+                ? String(priceObj.currency || "LKR") : String(p.currency || "LKR");
+              const cartItem: CartItem = {
+                productId: String(p.id || p.product_id || ""),
+                name: String(p.name || p.title || ""),
+                price,
+                currency: currency as "LKR" | "USD",
+                quantity: 1,
+                imageUrl: String(p.image_url || p.imageUrl || p.image || ""),
+              };
+              // Only add if not already in cart
+              if (!cartState.items.some((i) => i.productId === cartItem.productId)) {
+                cartDispatch({ type: "ADD_ITEM", payload: cartItem });
+              }
+              return; // synced
+            }
+          } catch { /* parse error — skip */ }
+        }
+      }
+    }
+  }, [messages, isLoading, cartState.items, cartDispatch]);
 
   // Parse dynamic actions from latest assistant message
   // Skip if any recent message has tool-rendered category tiles to avoid duplication
@@ -268,6 +347,7 @@ export default function ChatContainer() {
     if (!lastAssistant?.content) return undefined;
     const parsed = parseResponseActions(lastAssistant.content);
     return parsed.length > 0 ? parsed : undefined;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only recompute when item count changes
   }, [messages, cartState.items.length]);
 
   // Auto-retry countdown for rate limit errors

@@ -326,7 +326,7 @@ After ANY tool result, ALWAYS suggest the natural next step to keep the conversa
 - After search results → "Want me to check if [top pick] delivers to your area?" or "Should I compare these for you?"
 - After delivery check (available) → "Great news, delivery is available! Should I add it to your cart?"
 - After delivery check (unavailable) → "Unfortunately delivery isn't available there. Want me to check a nearby city or suggest pickup options?"
-- After add to cart → "Nice! Want to checkout now or keep browsing?"
+- After add to cart → "Nice! Want to checkout now or keep browsing?" (The UI cart is automatically synced — the cart counter updates when you confirm adding a product)
 - After order placed → "Your order is confirmed! 🎉" — do NOT include payment links in text (the UI renders the payment button automatically from the tool result)
 - After category listing → "Anything catch your eye? Tell me a category and I'll find the best options for you!"
 Never leave the user hanging — always give them a clear next action.`;

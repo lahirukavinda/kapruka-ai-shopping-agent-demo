@@ -107,7 +107,7 @@ const MAX_RETRIES = 2;
 
 export async function POST(req: Request) {
   try {
-    const { messages: rawMessages, language = "en" } = await req.json();
+    const { messages: rawMessages, language = "en", cart } = await req.json();
 
     const apiModel = getApiModelName();
     let messages = trimMessages(rawMessages);
@@ -124,6 +124,7 @@ export async function POST(req: Request) {
           agentModel,
           messages,
           language,
+          cart,
         });
 
         // Return the data stream response.

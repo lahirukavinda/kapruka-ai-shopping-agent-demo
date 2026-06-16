@@ -116,12 +116,23 @@ describe("classifyIntentByRules", () => {
     expect(classifyIntentByRules("ekata ganna")).toBe("shopping");
   });
 
-  it("detects Singlish checkout as order, order karanawa as shopping", () => {
+  it("detects Singlish checkout as order, order karanawa as order", () => {
     // "checkout karanawa" matches ORDER_PATTERNS via bare "checkout" word
     expect(classifyIntentByRules("checkout karanawa")).toBe("order");
-    // "order karanawa" doesn't match ORDER_PATTERNS (needs "place order" etc.),
-    // so it falls through to SINGLISH_CART_PATTERNS as a shopping action
-    expect(classifyIntentByRules("order karanawa")).toBe("shopping");
+    // "order karanna" matches ORDER_PATTERNS via "order.*karanna"
+    expect(classifyIntentByRules("order karanna")).toBe("order");
+    expect(classifyIntentByRules("order karanawa")).toBe("order");
+    // "order eka place karanna" matches ORDER_PATTERNS via "order.*place"
+    expect(classifyIntentByRules("ow, order eka place karanna. Springtime Birthday Ribbon Cake only")).toBe("order");
+  });
+
+  it("classifies recipient/sender details as order (not logistics)", () => {
+    // Messages with "Recipient", "Sender", "Gift message" are providing order details,
+    // even if they contain "Delivery" (which would otherwise match logistics)
+    expect(classifyIntentByRules(
+      "Recipient: Lahiru, Phone: 0713456789, Address: No 123 Galle Road Colombo 07, Delivery: June 18, Sender: Devin, Gift message: Happy Birthday machan!"
+    )).toBe("order");
+    expect(classifyIntentByRules("Sender: Devin, gift message: happy birthday")).toBe("order");
   });
 
   it("detects Sinhala Unicode cart patterns", () => {
@@ -358,5 +369,49 @@ describe("orchestrate", () => {
     // First call to streamText (classify) should use "second message"
     const classifyCall = mockStreamText.mock.calls[0][0];
     expect(classifyCall.messages).toEqual([{ role: "user", content: "second message" }]);
+  });
+
+  it("injects cart context into the system prompt when cart items are provided", async () => {
+    mockStreamText
+      .mockReturnValueOnce(makeTextStream("order"))
+      .mockReturnValueOnce(makeTextStream("Placing your order!"));
+
+    const model = createMockModel();
+    await orchestrate({
+      classifierModel: model,
+      agentModel: model,
+      messages: [{ role: "user", content: "place my order" }],
+      language: "en",
+      cart: [
+        { productId: "CAKE001", name: "Birthday Cake", price: 5000, currency: "LKR", quantity: 1 },
+        { productId: "CHOC002", name: "Chocolate Box", price: 2500, currency: "LKR", quantity: 2 },
+      ],
+    });
+
+    // The agent system prompt should contain cart context
+    const agentCall = mockStreamText.mock.calls[0][0]; // rule-based order, so agent is first call
+    expect(agentCall.system).toContain("Current Cart (2 items)");
+    expect(agentCall.system).toContain("Birthday Cake");
+    expect(agentCall.system).toContain("CAKE001");
+    expect(agentCall.system).toContain("Chocolate Box");
+    expect(agentCall.system).toContain("Subtotal");
+  });
+
+  it("does not inject cart context when cart is empty or undefined", async () => {
+    mockStreamText
+      .mockReturnValueOnce(makeTextStream("shopping"))
+      .mockReturnValueOnce(makeTextStream("Here are some products"));
+
+    const model = createMockModel();
+    await orchestrate({
+      classifierModel: model,
+      agentModel: model,
+      messages: [{ role: "user", content: "show me cakes" }],
+      language: "en",
+      cart: [],
+    });
+
+    const agentCall = mockStreamText.mock.calls[0][0];
+    expect(agentCall.system).not.toContain("Current Cart");
   });
 });

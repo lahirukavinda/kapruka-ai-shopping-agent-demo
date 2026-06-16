@@ -29,7 +29,11 @@ const SINHALA_UNICODE_PRODUCT_PATTERNS =
 const LOGISTICS_PATTERNS =
   /\b(deliver(y|ies)?|shipping|ship to|cities|city list|available.*(deliver|ship)|deliver.*(date|time|rate|cost|charge)|can you deliver|where.*(deliver|ship))\b/i;
 const ORDER_PATTERNS =
-  /\b(place.*(my|the)?\s*order|checkout|confirm.*order|complete.*purchase|cart.*order)\b/i;
+  /\b(place.*(my|the)?\s*order|checkout|confirm.*order|complete.*purchase|cart.*order|order.*place|order.*karanna|order.*karanawa)\b/i;
+// Patterns that indicate the user is providing order/checkout details (recipient, sender, etc.)
+// These should be classified as "order" even if they contain words like "Delivery" (which would otherwise match logistics)
+const ORDER_DETAILS_PATTERNS =
+  /\b(recipient|sender|gift.?message|gift.?card|icing.?text|place.*order|order.*place)\b/i;
 const EMOTIONAL_PATTERNS =
   /\b(sad|happy|angry|stressed|broke up|breakup|break up|miss you|missing|lonely|loneliness|depressed|anxious|worried|scared|excited|celebration|celebrating|engaged|married|divorced|lost someone|passed away|grief|grieving|heartbroken|love|hate|frustrated|overwhelmed|burned out|burnout|promoted|promotion|grateful|thankful|nervous|hurt|crying|tears|died|death|funeral|wedding|anniversary|pregnant|baby born|got fired|laid off|failed|success|achievement|graduated|graduation|retire|retired)\b/i;
 // Sri Lankan slang patterns for relationship/emotional context
@@ -54,6 +58,9 @@ export function classifyIntentByRules(message: string): Intent | null {
 
   // Order patterns are very specific, check first
   if (ORDER_PATTERNS.test(trimmed)) return "order";
+  // If the message contains order-detail fields (recipient, sender, gift message)
+  // it's providing checkout info — classify as "order" even if "delivery" appears
+  if (ORDER_DETAILS_PATTERNS.test(trimmed)) return "order";
   if (LOGISTICS_PATTERNS.test(trimmed)) return "logistics";
   // Emotional patterns before shopping — empathy first
   if (EMOTIONAL_PATTERNS.test(trimmed)) return "emotional";
@@ -118,11 +125,20 @@ export async function classifyIntent(
   }
 }
 
+interface CartSummaryItem {
+  productId: string;
+  name: string;
+  price: number;
+  currency: string;
+  quantity: number;
+}
+
 interface OrchestrateParams {
   classifierModel: LanguageModelV1;
   agentModel: LanguageModelV1;
   messages: CoreMessage[];
   language: string;
+  cart?: CartSummaryItem[];
 }
 
 /**
@@ -147,11 +163,26 @@ function buildSlangContext(tokens: SinhalaIntentTokens, language: string): strin
   return parts.join("\n");
 }
 
+function buildCartContext(cart: CartSummaryItem[]): string {
+  if (cart.length === 0) return "";
+  const lines = cart.map(
+    (item) => `- ${item.name} (ID: ${item.productId}, qty: ${item.quantity}, ${item.currency} ${item.price.toLocaleString()})`
+  );
+  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  return [
+    `\n\n## Current Cart (${cart.length} item${cart.length > 1 ? "s" : ""})`,
+    ...lines,
+    `- **Subtotal:** LKR ${total.toLocaleString()}`,
+    `\nThe user's cart is managed by the UI. When the user says "checkout" or "place order", use these cart items for the order. You can reference items by name.`,
+  ].join("\n");
+}
+
 export async function orchestrate({
   classifierModel,
   agentModel,
   messages,
   language,
+  cart,
 }: OrchestrateParams) {
   const lastUserMessage = [...messages]
     .reverse()
@@ -223,7 +254,8 @@ export async function orchestrate({
 
   // Append slang context if we have normalized tokens
   const slangContext = slangTokens ? buildSlangContext(slangTokens, language) : "";
-  const systemPrompt = getSystemPromptForLanguage(language, intentAddendum) + slangContext;
+  const cartContext = cart && cart.length > 0 ? buildCartContext(cart) : "";
+  const systemPrompt = getSystemPromptForLanguage(language, intentAddendum) + slangContext + cartContext;
 
   return streamText({
     model: agentModel,
