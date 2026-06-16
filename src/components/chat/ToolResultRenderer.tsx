@@ -183,13 +183,16 @@ function parseOrder(data: unknown): OrderResult | null {
           currency: String(summaryRaw.currency || "LKR"),
         }
       : undefined;
+    // Derive total from summary.grand_total if top-level total is missing
+    const total = Number(parsed.total || (summaryRaw ? summaryRaw.grand_total : 0) || 0);
+    const currency = String(parsed.currency || (summaryRaw ? summaryRaw.currency : "LKR") || "LKR");
     return {
-      orderId: String(parsed.order_id || parsed.orderId || ""),
+      orderId: String(parsed.order_id || parsed.orderId || parsed.order_ref || parsed.orderRef || ""),
       orderRef: orderRef ? String(orderRef) : undefined,
-      payUrl: String(parsed.pay_url || parsed.payUrl || ""),
+      payUrl: String(parsed.pay_url || parsed.payUrl || parsed.checkout_url || parsed.checkoutUrl || ""),
       checkoutUrl: checkoutUrl ? String(checkoutUrl) : undefined,
-      total: Number(parsed.total || 0),
-      currency: (String(parsed.currency || "LKR")) as "LKR" | "USD",
+      total,
+      currency: currency as "LKR" | "USD",
       items,
       summary,
       expiresAt: String(parsed.expires_at || parsed.expiresAt || new Date(Date.now() + 3600000).toISOString()),

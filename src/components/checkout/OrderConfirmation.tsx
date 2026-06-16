@@ -105,22 +105,26 @@ export default function OrderConfirmation({ order }: OrderConfirmationProps) {
 
       {/* Order details */}
       <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-        {order.orderId && (
-          <div className="flex justify-between">
-            <span className="font-medium">Order ID</span>
-            <span className="font-mono text-green-700 dark:text-green-300">{order.orderId}</span>
-          </div>
-        )}
+        {/* Show Order Ref (from order_ref) — the actual tracking number comes after payment */}
         {order.orderRef && (
           <div className="flex justify-between">
             <span className="font-medium">Reference</span>
             <span className="font-mono text-green-700 dark:text-green-300">{order.orderRef}</span>
           </div>
         )}
-        <div className="flex justify-between">
-          <span className="font-medium">Items</span>
-          <span>{order.items.length} item{order.items.length !== 1 ? "s" : ""}</span>
-        </div>
+        {/* Show Order ID only if it differs from orderRef (i.e. a real order_id from the API) */}
+        {order.orderId && order.orderId !== order.orderRef && (
+          <div className="flex justify-between">
+            <span className="font-medium">Order ID</span>
+            <span className="font-mono text-green-700 dark:text-green-300">{order.orderId}</span>
+          </div>
+        )}
+        {order.items.length > 0 && (
+          <div className="flex justify-between">
+            <span className="font-medium">Items</span>
+            <span>{order.items.length} item{order.items.length !== 1 ? "s" : ""}</span>
+          </div>
+        )}
         {order.summary && (
           <>
             <div className="border-t border-green-200 dark:border-green-800 pt-2 mt-2 space-y-1">
